@@ -1,51 +1,43 @@
-# PF2e Party Quick Sell — v1.0.0-rc.3
+# PF2e Party Quick Sell — v1.0.0
 
-Fix lifecycle binding: resolve the actual Foundry game at init instead of retaining
-the pre-init placeholder. Live rc.2 installation exposed this safely (no sale).
-Regression reproduced the bug and passes after correction; 59 automated tests.
-Live module acceptance testing continues on disposable inventory.
-
-## Prior rc.2 hardening
-
-Review hardening since rc.1:
-
-- Missing confirmation APIs no longer permit normal-click sales.
-- Invalid setting types and unavailable settings fail closed, without coercion.
-- Runtime checks enforce the manifest minimum Foundry build 14.361.
-- Partial-sale document APIs are checked before writing recovery journals.
-- Socket replay retention is bounded to 1024 requests per five-minute window;
-  saturation rejects further requests rather than growing GM memory indefinitely.
-- Rebuilt release artifacts contain the source documentation for this tag.
-- Sender-bound socket requests/replies, bounded completed-sale IDs.
-- Strict actual Party Stash scope; orphaned rows are excluded.
-- Stale whole-stack controls reject changes rather than sell a partial quantity.
-- Setting changes refresh open Party Sheets.
-- GitHub Actions are pinned to upstream commit SHAs.
-- Live fixture IDs removed from current evidence; JSON evidence not shipped.
-- Read-only actor lookup timeout and a separate 64-request in-flight cap.
-  Native mutations remain fail-closed rather than expiring unsafe operations.
-- 58 automated tests pass; live module installation/sales remain pending.
+Stable initial release after published rc.3 live acceptance on Foundry 14.369 /
+PF2e 8.6.1, 59 passing automated tests, and an independent final audit with no
+release blockers. Runtime is identical to the live-tested rc.3; this promotion
+changes version metadata and documentation only.
 
 ## Features
 
-Adds native-shaped coin controls to eligible physical equipment rows on the PF2e
-Party Sheet. Default resale is 50% of the system-calculated stack value;
-runes, magic equipment and bundled prices use PF2e valuation rather than raw
-base prices. Treasure selling is not modified.
+- Native-shaped coin controls on eligible physical equipment in the Party Stash.
+- Default resale: 50% of PF2e's prepared stack value, including native rune,
+  material, custom-price and bundled-quantity rules.
+- Whole-stack workflow with preview, normal-click confirmation and Ctrl-click.
+- Native treasure selling remains unchanged at full treasure value.
+- Party OWNER players can sell identified items; GMs can sell unidentified items.
+- World percentage setting: integer 0–100; zero proceeds never remove items.
+- Active-GM authoritative queue, fresh request validation and recovery journals.
+- Foundry V14; PF2e minimum 8.6.1 without a PF2e upper-version cap.
 
-- Foundry V14; PF2e minimum 8.6.1, no upper-version cap.
-- Permission behavior matches native editable Party Stash selling: Party OWNER
-  players can sell identified items; GMs can sell unidentified items as well.
-- World resale percentage setting, integer 0–100 (default 50).
-- Whole-stack workflow, native confirmation/Ctrl-click convention and preview.
-- GM-authoritative module queue, fresh item checks and persistent recovery record.
-- Automated CI, version-tag publishing and anonymous release-artifact verification.
+## Executed live acceptance
 
-This is a prerelease. It is not an atomic transaction. An online active GM is
-required, with only one transaction tab for that GM. Ambiguous interrupted sales
-require manual journal/currency reconciliation. External inventory edits, GM
-handoff and multi-tab split-brain are not covered by an exactly-once guarantee.
-Future PF2e releases are allowed subject to API checks, not claimed as tested.
+Real GM UI double-click protection, confirmation/cancellation, plain and rune
+weapons, armor, ammunition bundles, consumable stacks and custom values passed.
+Runtime partial-stack selling retained the remainder; the UI remains whole-stack.
+Native treasure, repeated sheet rendering and disable/reload behavior passed.
+Real separate player-owner socket sale, observer denial and competing GM/player
+requests passed. Synthetic prepared-journal blocking and safe clearing passed on
+a real disposable Actor. All temporary actors and users were removed.
 
-See README and docs/VERIFICATION.md for exact executed test outcomes and remaining
-acceptance gaps before promoting to stable v1.0.0.
+The pre-init Foundry game placeholder defect found during rc.2 installation is
+fixed and covered by a lifecycle regression. No campaign inventory was sold.
+See docs/VERIFICATION.md for exact executed results and their scope.
+
+## Important limitations
+
+Transactions are not atomic. Keep one transaction tab for the online active GM.
+Ambiguous failures block further module sales and require manual journal/currency
+reconciliation; never blindly replay a sale or award coins. External inventory
+edits, GM handoff, crashes and multi-tab split-brain are not covered by an
+exactly-once guarantee. Synthetic journal testing is not a crash-recovery test.
+Future PF2e versions are allowed subject to API checks, not claimed as tested.
+
+See README.md and docs/RECOVERY.md before using meaningful campaign inventory.

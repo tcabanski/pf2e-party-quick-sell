@@ -5,8 +5,8 @@ to equipment in the Pathfinder 2e Party Stash. It uses PF2e's calculated item
 value rather than reimplementing magic-item pricing. Existing Sell Treasure
 buttons and sales are left completely unchanged.
 
-**Release candidate:** this is not yet a fully acceptance-verified stable release.
-See [verification](docs/VERIFICATION.md) for executed checks and outstanding ones.
+**Stable v1.0.0:** 59 automated tests and live acceptance on Foundry 14.369 /
+PF2e 8.6.1. See [verification](docs/VERIFICATION.md) for executed checks and limits.
 
 ## Features
 
@@ -163,7 +163,7 @@ To publish an update:
 Prerelease tags contain a suffix (such as `v1.0.0-rc.1`) and are marked prerelease
 automatically. Stable v1.0.0 is reserved for verified acceptance criteria.
 For manual published artifact verification run:
-`python tools/verify_release.py v1.0.0-rc.2`.
+`python tools/verify_release.py v1.0.0`.
 
 ## License
 

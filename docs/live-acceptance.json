@@ -1,0 +1,132 @@
+{
+  "foundry": "14.369",
+  "pf2e": "8.6.1",
+  "module": "1.0.0-rc.3",
+  "checks": [
+    {
+      "test": "GM longsword UI rapid double click",
+      "removed": true,
+      "creditedCp": 50,
+      "journalCleared": true
+    },
+    {
+      "test": "Test Chain Mail",
+      "assetCp": 600,
+      "expectedCp": 300,
+      "creditedCp": 300,
+      "status": "sold",
+      "removed": true,
+      "journalCleared": true
+    },
+    {
+      "test": "Test +1 Striking Flaming Longsword",
+      "assetCp": 60000,
+      "expectedCp": 30000,
+      "creditedCp": 30000,
+      "status": "sold",
+      "removed": true,
+      "journalCleared": true
+    },
+    {
+      "test": "Test Ten Arrows",
+      "assetCp": 10,
+      "expectedCp": 5,
+      "creditedCp": 5,
+      "status": "sold",
+      "removed": true,
+      "journalCleared": true
+    },
+    {
+      "test": "Test Custom 15 gp",
+      "assetCp": 1500,
+      "expectedCp": 750,
+      "creditedCp": 750,
+      "status": "sold",
+      "removed": true,
+      "journalCleared": true
+    },
+    {
+      "test": "Test Five Longswords",
+      "assetCp": 500,
+      "expectedCp": 250,
+      "creditedCp": 250,
+      "status": "sold",
+      "removed": true,
+      "journalCleared": true
+    },
+    {
+      "test": "QS partial",
+      "status": "sold",
+      "creditedCp": 100,
+      "remaining": 3
+    },
+    {
+      "test": "QS 1 sp",
+      "status": "sold",
+      "creditedCp": 5,
+      "remaining": 0
+    },
+    {
+      "test": "QS three potions",
+      "status": "sold",
+      "creditedCp": 600,
+      "remaining": 0
+    },
+    {
+      "test": "QS zero",
+      "status": "no-sale",
+      "creditedCp": 0,
+      "remaining": 1
+    },
+    {
+      "test": "native treasure module enabled",
+      "removed": true,
+      "creditedCp": 50
+    },
+    {
+      "test": "real owner socket sale",
+      "creditedCp": 50,
+      "unidentifiedControlHidden": true
+    },
+    {
+      "test": "GM and owner competing clients",
+      "creditedCp": 50,
+      "removed": true,
+      "secondRejected": true
+    },
+    {
+      "test": "observer client",
+      "controls": 0,
+      "rejected": "not-owner",
+      "creditedCp": 0,
+      "remaining": 3
+    },
+    {
+      "test": "normal click cancellation",
+      "creditedCp": 0,
+      "remaining": 3
+    },
+    {
+      "test": "normal click confirmed sale",
+      "creditedCp": 150,
+      "removed": true
+    },
+    {
+      "test": "synthetic prepared journal on real document",
+      "blocked": "JOURNAL_BLOCKED",
+      "clear": "cleared",
+      "unchanged": true,
+      "journalCleared": true
+    },
+    {
+      "test": "disable reload",
+      "moduleControls": 0,
+      "nativeTreasureControls": 1
+    },
+    {
+      "test": "cleanup",
+      "remainingActors": 0,
+      "remainingUsers": 0
+    }
+  ]
+}

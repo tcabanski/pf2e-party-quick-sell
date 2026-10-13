@@ -1,7 +1,8 @@
 # Verification status
 
-This document records executed checks, not inferred success. Initial release is a
-release candidate, not stable v1.0.0.
+This document records executed checks, not inferred success. Stable v1.0.0 follows
+published rc.3 live acceptance and an independent final audit. Historical release
+candidate checks below retain their original scope and limitations.
 
 ## Source and live baseline
 
@@ -105,14 +106,54 @@ This remains mocked automated coverage, not full live acceptance approval.
 - Actions emitted Node 20 deprecation/runner migration warnings but completed
   successfully; action-runtime upgrades remain maintenance work.
 
-## Outstanding before stable release
+## Published rc.3 live acceptance
 
-- Final independent review of the hardened runtime and live API assumptions.
-- Real installation from published public manifest and module loading.
-- Real GM UI/basic/rune/stack/treasure/rerender/disable testing.
-- Real player-owner and non-owner authorization/socket tests, if temporary test
-  accounts can be used safely.
-- Cleanup of disposable live test actors/accounts/settings.
+Runelords interruption was explicitly approved. rc.2 was installed via its public
+main-branch manifest. It failed safely at startup because the module captured the
+pre-init `game` placeholder. A failing lifecycle regression reproduced this, and
+resolving the actual game at init fixed it; 59 automated tests now pass.
+
+rc.3 was anonymously verified and installed through its exact public release
+manifest after the main-branch URL returned a cached rc.2. Native installer
+metadata and runtime both reported 1.0.0-rc.3. Foundry 14.369 / PF2e 8.6.1.
+
+Executed live on disposable inventory; evidence: `live-acceptance.json` (19 checks):
+
+- Real GM Ctrl-click UI rapid double click: longsword removed, exactly 50 cp.
+- Chain mail 300 cp; +1 striking flaming longsword 30000 cp; ten arrows 5 cp;
+  custom 15-gp weapon 750 cp; five longswords 250 cp. Journals cleared.
+- Runtime partial-stack sale of 2/5 longswords: 100 cp, 3 remain. The UI remains
+  whole-stack-only. Three minor healing potions: 600 cp. Zero-value item untouched.
+- Native treasure UI with module enabled: 50-cp agate credited full 50 cp.
+- Real separate owner browser/client: identified controls visible, unidentified
+  control absent; real module socket sale credited exactly 50 cp.
+- GM/player competing requests for one item: one sale, 50 cp total; loser rejected.
+- Observer client: no controls; request rejected as not-owner, no inventory change.
+- Normal-click confirmation cancelled without mutation; Yes sold remaining
+  3-longsword stack for 150 cp.
+- A synthetic prepared journal written to a real disposable Actor blocked sales;
+  GM reconciliation cleared it only with unchanged inventory and currency.
+  This is not a real network/crash interruption test.
+- Close/reopen and document rerenders retained unique item controls without
+  duplicates. Disable/reload removed module controls, retaining native treasure.
+- Module re-enabled/reloaded successfully at 50%. Both disposable actors and
+  both disposable users removed; post-cleanup counts zero. Campaign inventory
+  and world ABP setting were not changed.
+
+The dedicated headless browser had excessive CPU after entering the rendered
+world; restarting with native client-only core.noCanvas=true avoided the spike.
+This does not prove which world/rendering component caused it and changes no
+other client's settings. Automation browser is closed when testing completes.
+
+## Stable release approval
+
+Final independent read-only audit examined main.js, its lifecycle regression,
+transaction.js and ui.js; no release blockers were found. Its fresh `npm test`
+run passed 59 tests, 0 failed. Stable v1.0.0 changes only version metadata and
+documentation from the live-tested rc.3 runtime.
+
+Real process crashes, GM handoff, and future PF2e versions are not live-tested
+or claimed safe beyond fail-closed/API checks and documented recovery limits.
 
 ## Guarantees not claimed
 
