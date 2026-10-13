@@ -1,4 +1,19 @@
-# PF2e Party Quick Sell — v1.0.0
+# PF2e Party Quick Sell — v1.0.1
+
+New equipment sales pay the largest available denominations: platinum, gold,
+silver, then copper remainder. For example, 300 gp pays 30 pp instead of 30000 cp;
+123 gp 4 sp 7 cp pays 12 pp, 3 gp, 4 sp, 7 cp. Existing stash coins are not changed.
+All newly created denomination stacks retain the sale recovery/audit marker and
+their combined value is verified before clearing the journal.
+
+Regression reproduced copper-only payouts before the fix. Full automated suite:
+60 tests passed. This patch is source/API and automated-test verified; no new
+live-world acceptance run is claimed.
+
+Version 1.0.1 also sorts above 1.0.0-rc.3 in Foundry's version comparator, so
+normal update discovery can move existing RC installs to this stable patch.
+
+## Initial v1.0.0 release
 
 Stable initial release after published rc.3 live acceptance on Foundry 14.369 /
 PF2e 8.6.1, 59 passing automated tests, and an independent final audit with no

@@ -9,7 +9,7 @@ stage, originalSource/source, itemId, requested quantity, assetCp, proceedsCp,
 percentage, requesterId and the original item fingerprint.
 
 Credited currency Items have `flags.pf2e-party-quick-sell.saleId` matching the
-journal transactionId. These are separate copper-piece stacks created through
+journal transactionId. These are separate denomination stacks (pp/gp/sp/cp; copper-only before v1.0.1) created through
 PF2e's native inventory API. Do not combine/transfer those stacks while reconciling.
 
 1. Stop equipment sales and stash edits. Keep one active-GM transaction tab.

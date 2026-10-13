@@ -155,6 +155,18 @@ documentation from the live-tested rc.3 runtime.
 Real process crashes, GM handoff, and future PF2e versions are not live-tested
 or claimed safe beyond fail-closed/API checks and documented recovery limits.
 
+## v1.0.1 denomination correction
+
+User testing identified copper-only payouts in v1.0.0. New regression reproduced
+30000-cp payout instead of 30 pp, and mixed payout mismatch, before the fix.
+The credit payload now decomposes exact integer proceeds into pp/gp/sp/cp and
+tags all standard coin denominations, not only copper. Multi-stack test doubles
+verify every stack's sale ID, exact combined value and cleared journal. Full
+suite: 60 tests passed. No new live-world run is claimed for this patch.
+
+Existing coin stacks are not exchanged or rewritten. Version 1.0.1 also sorts
+above prior 1.0.0-rc.3 under Foundry's non-semver version comparator.
+
 ## Guarantees not claimed
 
 The transaction is not atomic. Actor journal flags are not distributed CAS locks.

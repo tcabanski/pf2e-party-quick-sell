@@ -5,14 +5,17 @@ to equipment in the Pathfinder 2e Party Stash. It uses PF2e's calculated item
 value rather than reimplementing magic-item pricing. Existing Sell Treasure
 buttons and sales are left completely unchanged.
 
-**Stable v1.0.0:** 59 automated tests and live acceptance on Foundry 14.369 /
-PF2e 8.6.1. See [verification](docs/VERIFICATION.md) for executed checks and limits.
+**Stable v1.0.1:** 60 automated tests; initial runtime live acceptance on Foundry
+14.369 / PF2e 8.6.1. The denomination patch is automated/source-verified, not
+newly live-tested. See [verification](docs/VERIFICATION.md) for exact scope.
 
 ## Features
 
 - Sell eligible weapons, armor, shields, equipment, consumables, ammunition and
   other supported physical inventory Items from the existing Party Sheet.
 - Default proceeds are 50% of PF2e's calculated total stack value.
+- New proceeds use the largest possible coin denominations: platinum, gold,
+  silver, then copper remainder. Existing coins are not automatically exchanged.
 - Prepared prices include runes, materials, upgrades, custom prices and bundled
   quantities. Percentage calculations use integer copper pieces.
 - Native coin icon, placement, tooltip conventions and normal sheet refresh.

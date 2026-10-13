@@ -222,9 +222,19 @@ function taggedSaleId(item) {
   return item?.getFlag?.(MODULE_ID, "saleId") ?? item?.flags?.[MODULE_ID]?.saleId;
 }
 
-function isCopperCoin(item) {
+function isStandardCoin(item) {
   const unit = item?.unit ?? item?.system?.slug;
-  return unit === "cp" || item?.system?.price?.value?.cp !== undefined;
+  return ["pp", "gp", "sp", "cp"].includes(unit);
+}
+
+function proceedsCoins(proceedsCp) {
+  let remainder = proceedsCp;
+  const coins = {};
+  for (const [unit, value] of [["pp", 1000n], ["gp", 100n], ["sp", 10n], ["cp", 1n]]) {
+    coins[unit] = Number(remainder / value);
+    remainder %= value;
+  }
+  return coins;
 }
 
 function tagCoin(item, saleId) {
@@ -271,7 +281,7 @@ function createSaleRuntime(options = {}) {
   if (Hooks?.on) {
     const coinTagger = (item) => {
       for (const context of currencyContexts.values()) {
-        if (context.actor === item?.parent && context.active && item?.type === "treasure" && isCurrency(item) && isCopperCoin(item)) {
+        if (context.actor === item?.parent && context.active && item?.type === "treasure" && isCurrency(item) && isStandardCoin(item)) {
           tagCoin(item, context.saleId);
           break;
         }
@@ -423,7 +433,7 @@ function createSaleRuntime(options = {}) {
     const context = { actor, saleId, active: true };
     currencyContexts.set(actor.uuid ?? actor.id, context);
     try {
-      await actor.inventory.addCoins({ cp: Number(proceedsCp) }, { combineStacks: false });
+      await actor.inventory.addCoins(proceedsCoins(proceedsCp), { combineStacks: false });
     } catch (error) {
       throw new SaleError("RECONCILIATION_REQUIRED", "Currency credit is ambiguous; GM reconciliation is required", { cause: error, journal });
     } finally {
