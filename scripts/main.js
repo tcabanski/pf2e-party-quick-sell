@@ -1,7 +1,7 @@
 import { createSaleRuntime, hasRequiredRuntimeFeatures, isSupportedEnvironment } from "./transaction.js";
 import { decoratePartyInventory } from "./ui.js";
 
-function registerHooks({ Hooks = globalThis.Hooks, game = globalThis.game, logger = console } = {}) {
+function registerHooks({ Hooks = globalThis.Hooks, game, logger = console } = {}) {
   if (!Hooks?.once) return null;
   let runtime;
   Hooks.once("init", () => {

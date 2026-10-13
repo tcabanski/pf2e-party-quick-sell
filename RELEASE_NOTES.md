@@ -1,4 +1,11 @@
-# PF2e Party Quick Sell — v1.0.0-rc.2
+# PF2e Party Quick Sell — v1.0.0-rc.3
+
+Fix lifecycle binding: resolve the actual Foundry game at init instead of retaining
+the pre-init placeholder. Live rc.2 installation exposed this safely (no sale).
+Regression reproduced the bug and passes after correction; 59 automated tests.
+Live module acceptance testing continues on disposable inventory.
+
+## Prior rc.2 hardening
 
 Review hardening since rc.1:
 
