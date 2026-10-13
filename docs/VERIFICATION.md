@@ -92,6 +92,19 @@ This remains mocked automated coverage, not full live acceptance approval.
 - Prepared rc.2 with strict numeric saved settings, normal-click confirmation
   fail-closed behavior, partial API preflight and bounded socket replay retention.
 
+## rc.2 public publication verification
+
+- Commit `f3a31eb` pushed to public main; matching tag `v1.0.0-rc.2` pushed.
+- GitHub CI run `38410323342` and release run `38410326975` both succeeded.
+- Parent independently reran anonymous release verification: manifest and ZIP
+  succeeded, embedded version and advertised main version were `1.0.0-rc.2`,
+  compatibility/dependency/download metadata matched, and 9 archive files validated.
+- All 9 anonymously downloaded archive files matched the tagged local source
+  byte-for-byte. The verifier's `installed_version` means embedded manifest value,
+  not installation in a running Foundry instance.
+- Actions emitted Node 20 deprecation/runner migration warnings but completed
+  successfully; action-runtime upgrades remain maintenance work.
+
 ## Outstanding before stable release
 
 - Final independent review of the hardened runtime and live API assumptions.
