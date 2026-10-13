@@ -1,5 +1,108 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+test("socket request identity includes authenticated sender", async () => {
+  const owner = makeUser("owner");
+  const outsider = makeUser("outsider");
+  const item = makeItem();
+  const actor = makeActor(item, { user: owner });
+  const runtime = makeRuntime({ actor });
+  runtime.game.users.set(owner.id, owner);
+  runtime.game.users.set(outsider.id, outsider);
+  const replies = [];
+  runtime.game.socket.emit = (_channel, message) => replies.push(message);
+  const request = { type: "sell-request", requestId: "shared-id", actorUuid: actor.uuid, itemId: item.id, quantity: 1, percent: 50, fingerprint: runtime.fingerprint(item) };
+  await runtime.handleSocket(request, outsider.id);
+  await runtime.handleSocket(request, owner.id);
+  assert.equal(replies.at(-1).status, "sold");
+  assert.equal(replies.at(-1).requesterId, owner.id);
+  assert.equal(replies[0].requesterId, outsider.id);
+});
+
+test("percentage changes refresh rendered Party sheets", () => {
+  const runtime = makeRuntime();
+  let setting;
+  let renders = 0;
+  runtime.game.settings.register = (_scope, _key, value) => { setting = value; };
+  runtime.game.actors = [{ type: "party", sheet: { rendered: true, render: () => { renders += 1; } } }];
+  runtime.registerSetting();
+  setting.onChange(60);
+  assert.equal(renders, 1);
+});
+
+test("hung read-only actor lookup times out without a late sale", async () => {
+  const runtime = makeRuntime();
+  const replies = [];
+  runtime.game.socket.emit = (_channel, message) => replies.push(message);
+  let resolveLookup;
+  const bounded = createSaleRuntime({ game: runtime.game, Hooks: makeHooks(), lookupTimeoutMs: 5, resolveActor: () => new Promise(resolve => { resolveLookup = resolve; }) });
+  await bounded.handleSocket({ type: "sell-request", requestId: "hung", actorUuid: "Actor.none", itemId: "item", quantity: 1, percent: 50, fingerprint: "valid" }, runtime.game.user.id);
+  assert.equal(replies.at(-1).code, "LOOKUP_TIMEOUT");
+  resolveLookup(undefined);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(replies.length, 1);
+});
+
+test("hung lookup concurrency is capped without dropping active requests", async () => {
+  const runtime = makeRuntime();
+  const replies = [];
+  const lookups = [];
+  runtime.game.socket.emit = (_channel, message) => replies.push(message);
+  const bounded = createSaleRuntime({ game: runtime.game, Hooks: makeHooks(), resolveActor: () => new Promise(resolve => lookups.push(resolve)) });
+  const request = i => ({ type: "sell-request", requestId: `pending-${i}`, actorUuid: "Actor.none", itemId: "item", quantity: 1, percent: 50, fingerprint: "valid" });
+  const pending = Array.from({ length: 64 }, (_, i) => bounded.handleSocket(request(i), runtime.game.user.id));
+  await new Promise(resolve => setImmediate(resolve));
+  await bounded.handleSocket(request(64), runtime.game.user.id);
+  assert.equal(replies.at(-1).code, "RATE_LIMIT");
+  assert.equal(lookups.length, 64);
+  for (const resolve of lookups) resolve(undefined);
+  await Promise.all(pending);
+  assert.equal(replies.length, 65);
+});
+
+// Regression cases identified by independent release review.
+test("rejects coerced percentage types and unavailable saved setting", () => {
+  for (const value of [true, false, null, undefined, "50", [], {}]) {
+    assert.throws(() => computeProceedsCp(100, value), e => e.code === "INVALID_PERCENT");
+    const runtime = makeRuntime();
+    runtime.game.settings.get = () => value;
+    assert.throws(() => runtime.percent(), e => e.code === "INVALID_PERCENT");
+  }
+  const runtime = makeRuntime();
+  delete runtime.game.settings.get;
+  assert.throws(() => runtime.percent(), e => e.code === "UNSUPPORTED_API");
+});
+
+test("enforces the manifest minimum Foundry build at runtime", () => {
+  for (const version of ["14", "14.0", "14.360", "14.bad", "15.361"]) {
+    assert.equal(isSupportedEnvironment({ system: { id: "pf2e", version: "8.6.1" }, version }), false);
+  }
+  assert.equal(isSupportedEnvironment({ system: { id: "pf2e", version: "8.6.1" }, version: "14.361" }), true);
+});
+
+test("partial sale requires update API before writing a journal", async () => {
+  const item = makeItem({ quantity: 5, value: 500 });
+  const actor = makeActor(item);
+  delete item.update;
+  const runtime = makeRuntime({ actor });
+  await assert.rejects(runtime.sell({ actor, item, quantity: 2 }), e => e.code === "UNSUPPORTED_API");
+  assert.equal(actor.getFlag(MODULE_ID, "saleJournal"), undefined);
+  assert.equal(item.quantity, 5);
+  assert.equal(actor.inventory.addCoinsCalls.length, 0);
+});
+
+test("bounds unique socket request retention and processing", async () => {
+  const runtime = makeRuntime();
+  const messages = [];
+  let resolved = 0;
+  runtime.game.socket.emit = (_channel, message) => messages.push(message);
+  const bounded = createSaleRuntime({ game: runtime.game, Hooks: makeHooks(), resolveActor: async () => { resolved += 1; } });
+  for (let i = 0; i < 1025; i += 1) {
+    await bounded.handleSocket({ type: "sell-request", requestId: `spam-${i}`, actorUuid: "Actor.none", itemId: "item", quantity: 1, percent: 50, fingerprint: "valid" }, runtime.game.user.id);
+  }
+  assert.equal(resolved, 1024);
+  assert.equal(messages.at(-1).code, "RATE_LIMIT");
+});
 import { MODULE_ID, PHYSICAL_ITEM_TYPES, canSellItem, computeProceedsCp, createSaleRuntime, hasRequiredRuntimeFeatures, isSupportedEnvironment } from "../scripts/transaction.js";
 
 function makeUser(id, { isGM = false } = {}) { return { id, name: id, isGM, isActiveGM: isGM }; }

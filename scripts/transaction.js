@@ -41,17 +41,18 @@ function compareVersions(a, b) {
 function isSupportedEnvironment(gameLike = globalThis.game) {
   const systemVersion = parseVersion(gameLike?.system?.version);
   const foundryVersion = String(gameLike?.version ?? "");
-  const foundryMajor = Number(foundryVersion.match(/^\d+/)?.[0]);
-  return gameLike?.system?.id === "pf2e" && foundryMajor === 14 && systemVersion !== null && compareVersions(systemVersion, MIN_SYSTEM_VERSION) >= 0;
+  const foundryRelease = foundryVersion.match(/^(\d+)\.(\d+)$/);
+  const supportedFoundry = foundryRelease && Number(foundryRelease[1]) === 14 && Number(foundryRelease[2]) >= 361;
+  return gameLike?.system?.id === "pf2e" && Boolean(supportedFoundry) && systemVersion !== null && compareVersions(systemVersion, MIN_SYSTEM_VERSION) >= 0;
 }
 
 function hasRequiredRuntimeFeatures({ game = globalThis.game, Hooks = globalThis.Hooks } = {}) {
-  return Boolean(game?.settings?.register && game?.socket?.on && game?.socket?.emit && Hooks?.on);
+  return Boolean(game?.settings?.register && game?.settings?.get && game?.socket?.on && game?.socket?.emit && Hooks?.on);
 }
 
 function normalizePercent(percent) {
-  const value = Number(percent);
-  if (!Number.isInteger(value) || value < 0 || value > 100) {
+  const value = percent;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) {
     throw new SaleError("INVALID_PERCENT", "Resale percentage must be an integer from 0 to 100");
   }
   return value;
@@ -213,8 +214,8 @@ function getUser(users, id) {
 }
 
 function currentSettingPercent(game) {
-  const value = game?.settings?.get?.(MODULE_ID, "resalePercent");
-  return value === undefined ? DEFAULT_RESALE_PERCENT : normalizePercent(value);
+  if (typeof game?.settings?.get !== "function") throw new SaleError("UNSUPPORTED_API", "Foundry settings API is unavailable; no item was sold");
+  return normalizePercent(game.settings.get(MODULE_ID, "resalePercent"));
 }
 
 function taggedSaleId(item) {
@@ -255,11 +256,13 @@ function createSaleRuntime(options = {}) {
   const logger = options.logger ?? console;
   const idFactory = options.idFactory;
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
+  const lookupTimeoutMs = options.lookupTimeoutMs ?? 15_000;
+  let inFlightRequests = 0;
   const queues = new Map();
   const currencyContexts = new Map();
   const pendingRequests = new Map();
-  const receivedRequestIds = new Set();
-  const completedSaleIds = new Set();
+  const receivedRequestIds = new Map();
+  const completedSaleIds = new Set(); // Bounded recent IDs; currency flags remain durable evidence.
   let saleSequence = 0;
   const installedHooks = new Set();
   let installed = false;
@@ -304,9 +307,9 @@ function createSaleRuntime(options = {}) {
     throw new SaleError("SALE_ID_COLLISION", "A unique sale transaction id could not be allocated");
   }
 
-  function emitResult(requestId, result) {
+  function emitResult(requestId, result, requesterId) {
     if (!requestId) return;
-    game?.socket?.emit?.(SOCKET_CHANNEL, { type: "sell-result", requestId, ...result });
+    game?.socket?.emit?.(SOCKET_CHANNEL, { type: "sell-result", requestId, ...result, requesterId });
   }
 
   function deletionResultMatches(result, expectedId) {
@@ -352,6 +355,7 @@ function createSaleRuntime(options = {}) {
     }
     const fullStack = requestedQuantity === item.quantity;
     const expectedRemaining = item.quantity - requestedQuantity;
+    if (!fullStack && typeof item.update !== "function") throw new SaleError("UNSUPPORTED_API", "PF2e partial-stack update API is unavailable; no item was sold");
     if (!fullStack && (item.subitems?.length || contentsCount({ contents: item.subitems }) > 0)) {
       throw new SaleError("PARTIAL_SUBITEMS", "Attached subitems cannot be split from a partial sale");
     }
@@ -436,6 +440,7 @@ function createSaleRuntime(options = {}) {
     await clearFlag(actor);
     if (getFlag(actor)) throw new SaleError("RECONCILIATION_REQUIRED", "Sale completed but its journal could not be cleared", { journal });
     completedSaleIds.add(saleId);
+    if (completedSaleIds.size > 1024) completedSaleIds.delete(completedSaleIds.values().next().value);
     return { status: "sold", saleId, quantity: requestedQuantity, proceedsCp: proceedsCp.toString() };
   }
 
@@ -516,7 +521,7 @@ function createSaleRuntime(options = {}) {
   async function handleSocket(message, senderId) {
     if (message?.type === "sell-result") {
       const sender = getUser(game.users, senderId);
-      if (!sender?.isActiveGM) return;
+      if (!sender?.isActiveGM || message.requesterId !== game.user.id) return;
       const pending = pendingRequests.get(message.requestId);
       if (pending) {
         pendingRequests.delete(message.requestId);
@@ -527,31 +532,60 @@ function createSaleRuntime(options = {}) {
       return;
     }
     if (!game?.user?.isActiveGM || !validSocketRequest(message)) {
-      if (game?.user?.isActiveGM && typeof message?.requestId === "string") emitResult(message.requestId, { status: "error", code: "INVALID_REQUEST", message: "The sale request was malformed" });
+      if (game?.user?.isActiveGM && typeof message?.requestId === "string") emitResult(message.requestId, { status: "error", code: "INVALID_REQUEST", message: "The sale request was malformed" }, senderId);
       return;
     }
     const sender = getUser(game.users, senderId);
     if (!sender || sender.id !== senderId) {
-      emitResult(message.requestId, { status: "error", code: "UNAUTHENTICATED", message: "The sale requester could not be authenticated" });
+      emitResult(message.requestId, { status: "error", code: "UNAUTHENTICATED", message: "The sale requester could not be authenticated" }, senderId);
       return;
     }
-    if (receivedRequestIds.has(message.requestId)) {
-      emitResult(message.requestId, { status: "error", code: "DUPLICATE_REQUEST", message: "This sale request was already processed" });
+    const requestKey = JSON.stringify([senderId, message.requestId]);
+    if (receivedRequestIds.has(requestKey)) {
+      emitResult(message.requestId, { status: "error", code: "DUPLICATE_REQUEST", message: "This sale request was already processed" }, senderId);
       return;
     }
-    receivedRequestIds.add(message.requestId);
+    // Bounded replay window, including in-flight requests. Saturation fails
+    // closed instead of allocating unbounded state. Item fingerprints/journals
+    // still prevent replayed completed sales after this window expires.
+    const now = Date.now();
+    for (const [id, entry] of receivedRequestIds) {
+      if (entry.done && now - entry.receivedAt > 300_000) receivedRequestIds.delete(id);
+    }
+    if (receivedRequestIds.size >= 1024 || inFlightRequests >= 64) {
+      emitResult(message.requestId, { status: "error", code: "RATE_LIMIT", message: "Sale request limit reached; wait before retrying." }, senderId);
+      return;
+    }
+    const retainedRequest = { receivedAt: now, done: false };
+    receivedRequestIds.set(requestKey, retainedRequest);
+    inFlightRequests += 1;
     let result;
     try {
-      const actor = await resolveActor(message.actorUuid);
+      // Only the read-only lookup is timed out. Never race document mutations
+      // against a timer and then reopen their actor queue for a second sale.
+      let lookupTimer;
+      let actor;
+      try {
+        actor = await Promise.race([
+          Promise.resolve().then(() => resolveActor(message.actorUuid)),
+          new Promise((_resolve, reject) => {
+            lookupTimer = setTimeout(() => reject(new SaleError("LOOKUP_TIMEOUT", "Party lookup timed out; no sale was started")), lookupTimeoutMs);
+          }),
+        ]);
+      } finally { clearTimeout(lookupTimer); }
       const item = collectionGet(actor?.items, message.itemId);
       if (!actor || !item) throw new SaleError("NOT_FOUND", "The requested party item no longer exists");
+      const permission = canSellItem({ actor, item, user: sender });
+      if (!permission.ok) throw new SaleError("NOT_ELIGIBLE", `Item cannot be sold: ${permission.reason}`);
       if (currentSettingPercent(game) !== message.percent) throw new SaleError("STALE_REQUEST", "The world resale percentage changed; try again");
-      if (itemFingerprint(item, message.quantity) !== message.fingerprint) return emitResult(message.requestId, { status: "stale", reason: "fingerprint" });
-      result = await enqueue(actor, () => executeSale({ actor, item, user: sender, quantity: message.quantity, expectedFingerprint: message.fingerprint, expectedPercent: message.percent }));
+      if (itemFingerprint(item, message.quantity) !== message.fingerprint) result = { status: "stale", reason: "fingerprint" };
+      else result = await enqueue(actor, () => executeSale({ actor, item, user: sender, quantity: message.quantity, expectedFingerprint: message.fingerprint, expectedPercent: message.percent }));
     } catch (error) {
       result = { status: "error", code: error.code ?? "SALE_FAILED", message: error.message };
     }
-    emitResult(message.requestId, result);
+    inFlightRequests -= 1;
+    retainedRequest.done = true;
+    emitResult(message.requestId, result, senderId);
   }
 
   function registerSetting() {
@@ -568,6 +602,9 @@ function createSaleRuntime(options = {}) {
       onChange: (value) => {
         try {
           normalizePercent(value);
+          for (const actor of collectionValues(game.actors)) {
+            if (actor.type === "party" && actor.sheet?.rendered) actor.sheet.render(false);
+          }
         } catch (error) {
           notify("error", error.message);
         }

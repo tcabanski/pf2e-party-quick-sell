@@ -28,6 +28,14 @@ test("nested contained equipment gets a control before native edit and delete", 
   const { game, actor, item, runtime } = fixture();
   const dom = new JSDOM('<form><li data-item-id="bag"><div class="data"><div class="item-controls"></div></div><ul><li data-item-id="item"><div class="data"><div class="item-controls"><a data-action="edit-item"></a><a data-action="delete-item"></a></div></div></li></ul></li></form>');
   const root = dom.window.document.querySelector("form");
+  const tab = dom.window.document.createElement("div");
+  tab.className = "tab inventory";
+  tab.dataset.tab = "inventory";
+  const stash = dom.window.document.createElement("section");
+  stash.className = "inventory";
+  while (root.firstChild) stash.append(root.firstChild);
+  tab.append(stash);
+  root.append(tab);
   decoratePartyInventory({ actor, isEditable: true }, root, runtime);
   const controls = root.querySelector('li[data-item-id="item"] .item-controls');
   assert.equal(controls.firstElementChild.dataset.pf2ePartyQuickSell, "true");

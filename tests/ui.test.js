@@ -3,8 +3,57 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { decoratePartyInventory } from "../scripts/ui.js";
 
+test("missing confirmation API never executes a normal-click sale", async () => {
+  const { root, app } = setup();
+  const previous = globalThis.DialogV2;
+  delete globalThis.DialogV2;
+  let sales = 0;
+  const errors = [];
+  const runtime = { percent: () => 50, logger: { error: message => errors.push(message) }, requestSale: async () => { sales += 1; return { status: "sold" }; } };
+  try {
+    decoratePartyInventory(app, root, runtime);
+    root.querySelector('[data-pf2e-party-quick-sell="true"]').click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(sales, 0);
+    assert.match(errors[0], /confirmation.*unavailable/i);
+  } finally { globalThis.DialogV2 = previous; }
+});
+
+test("only actual Party Stash rows receive controls", () => {
+  const { root, app } = setup();
+  const outside = root.ownerDocument.createElement("div");
+  outside.dataset.tab = "orphaned";
+  outside.innerHTML = '<li data-item-id="a"><div class="item-controls"></div></li>';
+  root.append(outside);
+  decoratePartyInventory(app, root, { percent: () => 50 });
+  assert.equal(outside.querySelectorAll('[data-pf2e-party-quick-sell="true"]').length, 0);
+  assert.equal(root.querySelectorAll('[data-pf2e-party-quick-sell="true"]').length, 1);
+});
+
+test("stale whole-stack control never silently sells a partial quantity", async () => {
+  const { root, app, item } = setup();
+  let sales = 0;
+  const warnings = [];
+  const runtime = { percent: () => 50, logger: { warn: m => warnings.push(m) }, requestSale: async () => { sales += 1; return { status: "sold" }; } };
+  decoratePartyInventory(app, root, runtime);
+  item.quantity = 3;
+  root.querySelector('[data-pf2e-party-quick-sell="true"]').dispatchEvent(new root.ownerDocument.defaultView.MouseEvent("click", { bubbles: true, ctrlKey: true }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sales, 0);
+  assert.equal(warnings.length, 1);
+});
+
 function setup(html = `<form><ol class="inventory-list"><li data-item-id="a"><div class="item-controls"></div></li><li data-item-id="treasure"><div class="item-controls"><a class="item-sell-treasure" data-action="sell-treasure"><i class="fa-solid fa-coins"></i></a></div></li></ol></form>`) {
   const dom = new JSDOM(html);
+  const form = dom.window.document.querySelector("form");
+  const tab = dom.window.document.createElement("div");
+  tab.className = "tab inventory";
+  tab.dataset.tab = "inventory";
+  const stash = dom.window.document.createElement("section");
+  stash.className = "inventory";
+  while (form.firstChild) stash.append(form.firstChild);
+  tab.append(stash);
+  form.append(tab);
   const item = {
     id: "a",
     type: "equipment",
@@ -43,7 +92,7 @@ test("does not duplicate controls or listeners on rerender", async () => {
   decoratePartyInventory(app, root, runtime);
   assert.equal(root.querySelectorAll('[data-pf2e-party-quick-sell="true"]').length, 1);
   const control = root.querySelector('[data-pf2e-party-quick-sell="true"]');
-  control.dispatchEvent(new root.ownerDocument.defaultView.MouseEvent("click", { bubbles: true, cancelable: true }));
+  control.dispatchEvent(new root.ownerDocument.defaultView.MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls, 1);
 });

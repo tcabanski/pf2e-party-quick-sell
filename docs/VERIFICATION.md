@@ -63,9 +63,38 @@ This remains mocked automated coverage, not full live acceptance approval.
 - Live installer access redirected to the running game. Returning Runelords to
   Setup requires disconnect permission; requested but not yet received.
 
+## Independent-review correction verification
+
+- An independent read-only review reproduced 47 passing tests and zero npm
+  audit vulnerabilities, and identified fail-closed gaps.
+- Five new regressions were executed and failed on rc.1, then passed after fixes:
+  missing confirmation API, coerced settings types, minimum Foundry build,
+  missing partial-update API before journaling, and bounded socket retention.
+- Parent reran the full suite: **52 passed, 0 failed**, syntax checks and
+  `git diff --check` passed. These remain mocked automated tests.
+- Four additional regressions reproduced failures before fixes, then passed:
+  sender-bound socket identity/replies, Party Stash-only controls, stale stack
+  rejection and open-sheet refresh on percentage changes.
+- Full suite rerun: **56 passed, 0 failed**. Workflow action references pinned
+  to upstream commit SHAs. Current JSON evidence no longer includes fixture IDs
+  and is excluded from installable archives. Prior public rc.1 history/artifacts
+  remain unchanged; those opaque disposable IDs are not credentials.
+- A hung lookup regression timed out before the fix; after adding bounded
+  read-only lookups and a 64-request in-flight cap, **57 tests passed, 0 failed**.
+  Native mutations are never expired/replayed by a timer; genuinely hung native
+  transactions remain fail-closed and require recovery after connectivity repair.
+- Additional verification exercised 64 unresolved lookups and confirmed the
+  65th is rejected without dropping active work. Full suite: **58 passed, 0 failed**.
+- Independent targeted review of the 56-test state reported no blockers;
+  sender-bound replies, strict stash selector against upstream, stale-stack
+  rejection, bounded retention and setting refresh passed. The subsequent two
+  lookup-safety tests were rerun by the parent, not that independent reviewer.
+- Prepared rc.2 with strict numeric saved settings, normal-click confirmation
+  fail-closed behavior, partial API preflight and bounded socket replay retention.
+
 ## Outstanding before stable release
 
-- Independent final code review.
+- Final independent review of the hardened runtime and live API assumptions.
 - Real installation from published public manifest and module loading.
 - Real GM UI/basic/rune/stack/treasure/rerender/disable testing.
 - Real player-owner and non-owner authorization/socket tests, if temporary test

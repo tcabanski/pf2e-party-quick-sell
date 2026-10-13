@@ -1,4 +1,25 @@
-# PF2e Party Quick Sell — initial release candidate
+# PF2e Party Quick Sell — v1.0.0-rc.2
+
+Review hardening since rc.1:
+
+- Missing confirmation APIs no longer permit normal-click sales.
+- Invalid setting types and unavailable settings fail closed, without coercion.
+- Runtime checks enforce the manifest minimum Foundry build 14.361.
+- Partial-sale document APIs are checked before writing recovery journals.
+- Socket replay retention is bounded to 1024 requests per five-minute window;
+  saturation rejects further requests rather than growing GM memory indefinitely.
+- Rebuilt release artifacts contain the source documentation for this tag.
+- Sender-bound socket requests/replies, bounded completed-sale IDs.
+- Strict actual Party Stash scope; orphaned rows are excluded.
+- Stale whole-stack controls reject changes rather than sell a partial quantity.
+- Setting changes refresh open Party Sheets.
+- GitHub Actions are pinned to upstream commit SHAs.
+- Live fixture IDs removed from current evidence; JSON evidence not shipped.
+- Read-only actor lookup timeout and a separate 64-request in-flight cap.
+  Native mutations remain fail-closed rather than expiring unsafe operations.
+- 58 automated tests pass; live module installation/sales remain pending.
+
+## Features
 
 Adds native-shaped coin controls to eligible physical equipment rows on the PF2e
 Party Sheet. Default resale is 50% of the system-calculated stack value;

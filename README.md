@@ -126,7 +126,14 @@ locks. Multiple tabs for the same active GM, GM handoff/disconnection, server
 crashes and simultaneous edits by other modules/native treasure selling cannot
 be given a distributed exactly-once guarantee. Do not edit/transfer stash Items
 or currency during a sale. Pending records survive reload for manual recovery;
-there is no unsafe automatic replay.
+there is no unsafe automatic replay. Socket replay retention is bounded to 1024
+requests in a five-minute window; saturation rejects further requests until
+completed entries expire. This bounds retained requests, not a guarantee against
+denial of service by malicious authenticated clients. Read-only actor lookups
+expire after 15 seconds, and at most 64 socket requests may be in flight. A hung
+native document mutation deliberately keeps its actor queue blocked; it is not
+cancelled/replayed by a timer. Restore server connectivity and inspect journals
+before reloading the single active-GM transaction client.
 
 No PF2e methods are patched or replaced. Disable the module and reload clients
 to restore the native UI. A pending recovery record still requires reconciliation
@@ -156,7 +163,7 @@ To publish an update:
 Prerelease tags contain a suffix (such as `v1.0.0-rc.1`) and are marked prerelease
 automatically. Stable v1.0.0 is reserved for verified acceptance criteria.
 For manual published artifact verification run:
-`python tools/verify_release.py v1.0.0-rc.1`.
+`python tools/verify_release.py v1.0.0-rc.2`.
 
 ## License
 

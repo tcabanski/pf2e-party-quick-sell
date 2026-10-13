@@ -25,7 +25,7 @@ if tag:
 files = [ROOT / name for name in ["module.json", "README.md", "LICENSE"]]
 files += sorted((ROOT / "scripts").glob("*.js"))
 files += sorted((ROOT / "docs").glob("*.md"))
-files += sorted((ROOT / "docs").glob("*.json"))
+# JSON live evidence stays in the repository, not the installable archive.
 for name in manifest["esmodules"]:
     assert ROOT / name in files and (ROOT / name).is_file(), f"Missing entry point {name}"
 assert all(path.is_file() and not path.is_symlink() for path in files)
@@ -39,5 +39,7 @@ with zipfile.ZipFile(dist / "module.zip", "w", zipfile.ZIP_DEFLATED) as archive:
 with zipfile.ZipFile(dist / "module.zip") as archive:
     assert archive.testzip() is None
     assert json.loads(archive.read(f"{module_id}/module.json")) == manifest
+    for path in files:
+        assert archive.read(f"{module_id}/{path.relative_to(ROOT).as_posix()}") == path.read_bytes(), f"Archive differs from source: {path}"
     assert all(name.startswith(module_id + "/") and ".." not in name.split("/") for name in archive.namelist())
 print(f"Validated {module_id} {version}; built {dist / 'module.zip'} ({len(files)} files)")

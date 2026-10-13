@@ -1,14 +1,11 @@
 {
   "nativeTreasure": {
-    "itemId": "GuqPycaP3T7II7Sx",
     "assetCp": 50,
     "beforeCp": 0,
     "itemRemoved": true,
     "creditedCp": 50
   },
   "abp": {
-    "actorId": "iI9Ms9oLPg39Z8Lb",
-    "itemId": "RGB432Pv8WviNQrT",
     "rawRunes": {
       "potency": 1,
       "striking": 1,

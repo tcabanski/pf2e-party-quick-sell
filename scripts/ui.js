@@ -16,7 +16,7 @@ function isEditable(app) {
 }
 
 function stashRoot(root) {
-  return root.querySelector?.("[data-section=party-stash], .party-stash, .party-inventory") ?? root;
+  return root.querySelector?.('.tab[data-tab="inventory"] > section.inventory');
 }
 
 function isMemberRow(row) {
@@ -24,7 +24,7 @@ function isMemberRow(row) {
 }
 
 function directItemRows(root) {
-  return [...stashRoot(root).querySelectorAll?.("li[data-item-id]") ?? []]
+  return [...stashRoot(root)?.querySelectorAll?.("li[data-item-id]") ?? []]
     .filter((row) => !isMemberRow(row));
 }
 
@@ -70,6 +70,8 @@ function makeControl(document, item, percent, runtime) {
   control.dataset.pf2ePartyQuickSell = "true";
   control.dataset.itemId = item.id;
   control.dataset.quantity = String(item.quantity);
+  if (runtime.fingerprint) control.dataset.fingerprint = runtime.fingerprint(item);
+  control.dataset.percent = String(percent);
   control.setAttribute("role", "button");
   control.setAttribute("tabindex", "0");
   control.setAttribute("aria-label", "Sell item");
@@ -94,7 +96,7 @@ function notify(runtime, level, message) {
 
 async function confirmSale(runtime, item, tooltip) {
   const DialogV2 = globalThis.foundry?.applications?.api?.DialogV2 ?? globalThis.DialogV2;
-  if (typeof DialogV2?.confirm !== "function") return true;
+  if (typeof DialogV2?.confirm !== "function") throw new Error("Foundry confirmation API is unavailable; no item was sold.");
   const paragraph = globalThis.document?.createElement("p");
   if (paragraph) paragraph.textContent = tooltip;
   const result = await DialogV2.confirm({
@@ -130,7 +132,12 @@ function attachListener(root, app, runtime) {
     try {
       const tooltip = target.getAttribute("data-tooltip") ?? "Sell item";
       if (!event.ctrlKey && !(await confirmSale(runtime, item, tooltip))) return;
-      const request = { actor: app.actor, item, quantity: Number(target.dataset.quantity) };
+      if (Number(target.dataset.quantity) !== item.quantity || Number(target.dataset.percent) !== runtime.percent() || (runtime.fingerprint && target.dataset.fingerprint !== runtime.fingerprint(item))) {
+        notify(runtime, "warn", "The stack or resale value changed. Refresh the party inventory and try again.");
+        app.render?.(false);
+        return;
+      }
+      const request = { actor: app.actor, item, quantity: item.quantity };
       const result = runtime.requestSale ? await runtime.requestSale(request) : await runtime.sell(request);
       if (result?.status === "sold") app.render?.(false);
       else if (result?.status === "stale") notify(runtime, "warn", "The item changed before it could be sold. Refresh the party inventory and try again.");
