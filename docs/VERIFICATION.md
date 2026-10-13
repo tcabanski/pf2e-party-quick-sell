@@ -167,6 +167,15 @@ suite: 60 tests passed. No new live-world run is claimed for this patch.
 Existing coin stacks are not exchanged or rewritten. Version 1.0.1 also sorts
 above prior 1.0.0-rc.3 under Foundry's non-semver version comparator.
 
+## v1.0.2 stack consolidation
+
+Successful equipment sales consolidate direct standard coins to one stack per
+pp/gp/sp/cp denomination. Existing duplicate stacks are included; contained coins
+and non-coin items are excluded. New regressions cover repeated sales, duplicate
+stacks, value conservation, detached persisted journal baseline before mutation,
+audit ID preservation, unsafe quantities and failed updates/deletes. Parent reran
+66 passing tests, build and diff checks. No new live-world run is claimed.
+
 ## Guarantees not claimed
 
 The transaction is not atomic. Actor journal flags are not distributed CAS locks.

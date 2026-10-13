@@ -1,4 +1,19 @@
-# PF2e Party Quick Sell — v1.0.1
+# PF2e Party Quick Sell — v1.0.2
+
+Successful equipment sales now consolidate top-level Party Stash coins to one
+stack per denomination, including duplicate stacks from earlier sales. Largest
+pp/gp/sp/cp payouts are preserved. Contained coins and nonstandard treasure are
+not merged. Existing quantities are combined, not exchanged between denominations.
+
+Credit is verified before consolidation. A persisted consolidation baseline,
+combined-value checks and merged sale audit IDs support fail-closed recovery if
+an update/delete is interrupted. Do not retry an ambiguous failed sale blindly.
+
+66 automated tests pass, including repeated sales, existing duplicate stacks,
+detached journal persistence, containment, value conservation and merge failures.
+No new live-world test is claimed for this patch.
+
+## Prior v1.0.1 denomination fix
 
 New equipment sales pay the largest available denominations: platinum, gold,
 silver, then copper remainder. For example, 300 gp pays 30 pp instead of 30000 cp;

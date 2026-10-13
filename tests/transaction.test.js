@@ -75,7 +75,99 @@ test("credits largest denominations and tags every created coin stack", async ()
   }
 });
 
-// Regression cases identified by independent release review.
+test("consolidates existing duplicate coin stacks after a sale", async () => {
+  const item = makeItem({ value: 200 });
+  const actor = makeActor(item);
+  addCoin(actor, "gp", 2, "old-gp-a");
+  addCoin(actor, "gp", 3, "old-gp-b");
+  const runtime = makeRuntime({ actor });
+  const result = await runtime.sell({ actor, item });
+  assert.equal(result.status, "sold");
+  const gp = [...actor.items.values()].filter(coin => coin.unit === "gp");
+  assert.equal(gp.length, 1);
+  assert.equal(gp[0].quantity, 6);
+  assert.equal([...actor.items.values()].filter(coin => coin.unit === "gp").reduce((sum, coin) => sum + coin.quantity * 100, 0), 600);
+  assert.deepEqual(gp[0].flags[MODULE_ID].saleIds.sort(), ["old-gp-a", "old-gp-b", result.saleId].sort());
+  assert.equal(actor.getFlag(MODULE_ID, "saleJournal"), undefined);
+});
+
+test("repeated sales keep one standard coin stack per denomination", async () => {
+  const first = makeItem({ id: "first", value: 200 });
+  const actor = makeActor(first);
+  const runtime = makeRuntime({ actor });
+  assert.equal((await runtime.sell({ actor, item: first })).status, "sold");
+  const second = makeItem({ id: "second", value: 200 });
+  second.parent = actor;
+  actor.items.set(second.id, second);
+  assert.equal((await runtime.sell({ actor, item: second })).status, "sold");
+  for (const unit of ["pp", "gp", "sp", "cp"]) {
+    assert.ok([...actor.items.values()].filter(coin => coin.unit === unit).length <= 1, unit);
+  }
+  assert.equal([...actor.items.values()].filter(coin => coin.unit === "gp")[0].quantity, 2);
+});
+
+test("keeps a consolidation failure journaled and does not claim success", async () => {
+  const item = makeItem({ value: 200 });
+  const actor = makeActor(item);
+  addCoin(actor, "gp", 1, "old-gp-a");
+  addCoin(actor, "gp", 1, "old-gp-b", new Error("delete timeout"));
+  const runtime = makeRuntime({ actor });
+  await assert.rejects(runtime.sell({ actor, item }), error => error.code === "RECONCILIATION_REQUIRED");
+  assert.equal(actor.getFlag(MODULE_ID, "saleJournal").stage, "consolidating");
+  assert.deepEqual([...actor.items.values()].filter(coin => coin.unit === "gp").map(coin => coin.id), ["existing-gp-1", "existing-gp-2", "coin-1-gp"]);
+});
+
+test("persists a detached consolidation baseline before the first coin mutation", async () => {
+  const item = makeItem({ value: 200 });
+  const actor = makeActor(item);
+  addCoin(actor, "gp", 2, "old-gp-a");
+  addCoin(actor, "gp", 3, "old-gp-b");
+  const originalSetFlag = actor.setFlag.bind(actor);
+  actor.setFlag = async (scope, key, value) => originalSetFlag(scope, key, structuredClone(value));
+  actor.getFlag = (scope, key) => structuredClone(actor.flags[scope]?.[key]);
+  const keeper = [...actor.items.values()].find((coin) => coin.unit === "gp");
+  const originalUpdate = keeper.update.bind(keeper);
+  let baselineAtMutation;
+  keeper.update = async (changes) => {
+    baselineAtMutation = actor.getFlag(MODULE_ID, "saleJournal")?.consolidation;
+    return originalUpdate(changes);
+  };
+  const result = await makeRuntime({ actor }).sell({ actor, item });
+  assert.equal(result.status, "sold");
+  assert.equal(baselineAtMutation.baseline.length, 3);
+  assert.equal(baselineAtMutation.expectedValueCp, "600");
+});
+
+test("leaves contained and non-coin gp-slug items untouched and does not fabricate audit IDs", async () => {
+  const item = makeItem({ value: 2 });
+  const actor = makeActor(item);
+  const contained = addCoin(actor, "gp", 9, "contained-source");
+  contained.container = { id: "bag" };
+  const direct = addCoin(actor, "gp", 1, "direct-source");
+  const weapon = makeItem({ id: "weapon-gp", type: "weapon", value: 1 });
+  weapon.system.slug = "gp";
+  weapon.parent = actor;
+  actor.items.set(weapon.id, weapon);
+  const result = await makeRuntime({ actor }).sell({ actor, item });
+  assert.equal(result.status, "sold");
+  assert.equal(contained.quantity, 9);
+  assert.equal(actor.items.get(contained.id), contained);
+  assert.equal(direct.quantity, 1);
+  assert.deepEqual(direct.flags[MODULE_ID].saleIds, undefined);
+  assert.equal(direct.flags[MODULE_ID].saleId, "direct-source");
+  assert.equal(actor.items.get(weapon.id), weapon);
+});
+
+test("rejects unsafe denomination totals before any consolidation mutation", async () => {
+  const item = makeItem({ value: 2 });
+  const actor = makeActor(item);
+  addCoin(actor, "gp", Number.MAX_SAFE_INTEGER, "huge-source");
+  addCoin(actor, "gp", 1, "small-source");
+  const runtime = makeRuntime({ actor });
+  await assert.rejects(runtime.sell({ actor, item }), (error) => error.code === "VALUE_TOO_LARGE");
+  assert.equal(actor.getFlag(MODULE_ID, "saleJournal").stage, "consolidating");
+  assert.equal([...actor.items.values()].filter((coin) => coin.unit === "gp").length, 2);
+});
 test("rejects coerced percentage types and unavailable saved setting", () => {
   for (const value of [true, false, null, undefined, "50", [], {}]) {
     assert.throws(() => computeProceedsCp(100, value), e => e.code === "INVALID_PERCENT");
@@ -123,7 +215,8 @@ import { MODULE_ID, PHYSICAL_ITEM_TYPES, canSellItem, computeProceedsCp, createS
 function makeUser(id, { isGM = false } = {}) { return { id, name: id, isGM, isActiveGM: isGM }; }
 function makeHooks() { const listeners = new Map(); return { on(name, fn) { const list = listeners.get(name) ?? []; list.push(fn); listeners.set(name, list); return fn; }, off(name, fn) { listeners.set(name, (listeners.get(name) ?? []).filter((entry) => entry !== fn)); }, emit(name, ...args) { for (const fn of listeners.get(name) ?? []) fn(...args); } }; }
 function makeItem({ id = "item-1", type = "equipment", quantity = 1, value = 100, identified = true, temporary = false, isTemporary = false, systemTemporary = false, parent, parentItem, contents = [], subitems = [], deleteError } = {}) { return { id, uuid: `${parent?.uuid ?? "Actor.actor-1"}.Item.${id}`, name: "Test item", type, quantity, isIdentified: identified, temporary, isTemporary, parentItem, system: { temporary: systemTemporary }, contents, subitems, assetValue: { copperValue: value }, price: { value: value / quantity, per: 1 }, toObject: function toObject() { return { _id: id, type: this.type, system: { quantity: this.quantity, price: { value } }, name: "Test item" }; }, canUserModify: (user, action) => action === "delete" && user.id !== "blocked", async delete() { if (deleteError) throw deleteError; this.parent.items.delete(id); return this; }, async update(changes) { const next = changes["system.quantity"]; if (next !== undefined) this.quantity = next; return this; } }; }
-function makeActor(item, { permission = true, user = makeUser("owner"), setFlagError, addCoinsError, hookBus = makeHooks() } = {}) { const actor = { id: "actor-1", uuid: "Actor.actor-1", type: "party", _hookBus: hookBus, items: new Map(), flags: { [MODULE_ID]: {} }, inventory: { addCoinsCalls: [], async addCoins(coins, options) { this.addCoinsCalls.push({ coins, options }); if (addCoinsError) throw addCoinsError; for (const [unit, quantity] of Object.entries(coins)) { if (!quantity) continue; const rates = { pp: 1000, gp: 100, sp: 10, cp: 1 }; const coin = { id: `coin-${this.addCoinsCalls.length}-${unit}`, type: "treasure", isCurrency: true, isCoinage: true, system: { category: "coin", slug: unit, quantity }, assetValue: { copperValue: quantity * rates[unit] }, parent: actor }; actor.items.set(coin.id, coin); hookBus.emit("preCreateItem", coin, {}, {}, user.id); } } }, testUserPermission: (candidate) => permission && (candidate.isGM || candidate.id === user.id), async setFlag(scope, key, value) { if (setFlagError) throw setFlagError; this.flags[scope] ??= {}; this.flags[scope][key] = value; return value; }, getFlag(scope, key) { return this.flags[scope]?.[key]; }, async unsetFlag(scope, key) { delete this.flags[scope]?.[key]; } }; item.parent = actor; actor.items.set(item.id, item); return actor; }
+function addCoin(actor, unit, quantity, saleId, deleteError) { const rates = { pp: 1000, gp: 100, sp: 10, cp: 1 }; const coin = { id: `existing-${unit}-${actor.items.size}`, unit, type: "treasure", isCurrency: true, isCoinage: true, system: { category: "coin", slug: unit, quantity }, quantity, assetValue: { get copperValue() { return coin.quantity * rates[unit]; } }, flags: { [MODULE_ID]: saleId ? { saleId } : {} }, parent: actor, async update(changes) { if (changes["system.quantity"] !== undefined) { this.quantity = changes["system.quantity"]; this.system.quantity = changes["system.quantity"]; } if (changes[`flags.${MODULE_ID}.saleId`]) this.flags[MODULE_ID].saleId = changes[`flags.${MODULE_ID}.saleId`]; if (changes[`flags.${MODULE_ID}.saleIds`]) this.flags[MODULE_ID].saleIds = changes[`flags.${MODULE_ID}.saleIds`]; return this; }, async delete() { if (deleteError) throw deleteError; actor.items.delete(this.id); return this; } }; actor.items.set(coin.id, coin); return coin; }
+function makeActor(item, { permission = true, user = makeUser("owner"), setFlagError, addCoinsError, hookBus = makeHooks() } = {}) { const actor = { id: "actor-1", uuid: "Actor.actor-1", type: "party", _hookBus: hookBus, items: new Map(), flags: { [MODULE_ID]: {} }, inventory: { addCoinsCalls: [], async addCoins(coins, options) { this.addCoinsCalls.push({ coins, options }); if (addCoinsError) throw addCoinsError; for (const [unit, quantity] of Object.entries(coins)) { if (!quantity) continue; const rates = { pp: 1000, gp: 100, sp: 10, cp: 1 }; const coin = { id: `coin-${this.addCoinsCalls.length}-${unit}`, unit, type: "treasure", isCurrency: true, isCoinage: true, system: { category: "coin", slug: unit, quantity }, quantity, assetValue: { get copperValue() { return coin.quantity * rates[unit]; } }, flags: { [MODULE_ID]: {} }, parent: actor, async update(changes) { if (changes["system.quantity"] !== undefined) { this.quantity = changes["system.quantity"]; this.system.quantity = changes["system.quantity"]; } if (changes[`flags.${MODULE_ID}.saleId`]) this.flags[MODULE_ID].saleId = changes[`flags.${MODULE_ID}.saleId`]; if (changes[`flags.${MODULE_ID}.saleIds`]) this.flags[MODULE_ID].saleIds = changes[`flags.${MODULE_ID}.saleIds`]; return this; }, async delete() { actor.items.delete(this.id); return this; } }; actor.items.set(coin.id, coin); hookBus.emit("preCreateItem", coin, {}, {}, user.id); } } }, testUserPermission: (candidate) => permission && (candidate.isGM || candidate.id === user.id), async setFlag(scope, key, value) { if (setFlagError) throw setFlagError; this.flags[scope] ??= {}; this.flags[scope][key] = value; return value; }, getFlag(scope, key) { return this.flags[scope]?.[key]; }, async unsetFlag(scope, key) { delete this.flags[scope]?.[key]; } }; item.parent = actor; actor.items.set(item.id, item); return actor; }
 function makeRuntime({ actor, gameUser = makeUser("gm", { isGM: true }), hooks = makeHooks(), socket } = {}) { const game = { pf2e: { Coins: { fromPrice: (price, quantity) => ({ copperValue: price.value * quantity }) } }, user: gameUser, users: new Map([[gameUser.id, gameUser]]), system: { id: "pf2e", version: "8.6.1" }, version: "14.369", settings: { get: () => 50 }, socket: socket ?? { emit() {}, on() {} } }; return createSaleRuntime({ game, Hooks: actor?._hookBus ?? hooks, resolveActor: async () => actor, logger: { error() {}, warn() {} } }); }
 
 test("computes exact floored resale proceeds for zero, fractional, and large values", () => { assert.equal(computeProceedsCp(0n, 50), 0n); assert.equal(computeProceedsCp(99n, 50), 49n); assert.equal(computeProceedsCp(101n, 50), 50n); assert.equal(computeProceedsCp(1000n, 50), 500n); assert.equal(computeProceedsCp(999999999999999n, 37), 369999999999999n); });

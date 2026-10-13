@@ -5,8 +5,8 @@ to equipment in the Pathfinder 2e Party Stash. It uses PF2e's calculated item
 value rather than reimplementing magic-item pricing. Existing Sell Treasure
 buttons and sales are left completely unchanged.
 
-**Stable v1.0.1:** 60 automated tests; initial runtime live acceptance on Foundry
-14.369 / PF2e 8.6.1. The denomination patch is automated/source-verified, not
+**Stable v1.0.2:** 66 automated tests; initial runtime live acceptance on Foundry
+14.369 / PF2e 8.6.1. The denomination and consolidation patches are automated/source-verified, not
 newly live-tested. See [verification](docs/VERIFICATION.md) for exact scope.
 
 ## Features
@@ -15,7 +15,10 @@ newly live-tested. See [verification](docs/VERIFICATION.md) for exact scope.
   other supported physical inventory Items from the existing Party Sheet.
 - Default proceeds are 50% of PF2e's calculated total stack value.
 - New proceeds use the largest possible coin denominations: platinum, gold,
-  silver, then copper remainder. Existing coins are not automatically exchanged.
+  silver, then copper remainder. After a successful sale, all top-level standard
+  Party Stash coinage is consolidated to at most one stack per denomination;
+  contained/nonstandard treasure is untouched. Existing coin audit IDs are retained
+  in the merged stack's `saleIds` flag.
 - Prepared prices include runes, materials, upgrades, custom prices and bundled
   quantities. Percentage calculations use integer copper pieces.
 - Native coin icon, placement, tooltip conventions and normal sheet refresh.
@@ -116,6 +119,10 @@ duplicate clicks and changed items are rejected. A durable namespaced Party flag
 records an in-progress sale before removal. Credit uses PF2e's native currency API
 with separate, sale-tagged currency Items rather than competing updates to an
 existing coin stack. Completion is verified before clearing the recovery record.
+The final stage consolidates only direct Party Items whose unit is pp, gp, sp or cp;
+it records every source stack and expected copper value in the journal before
+updating/deleting documents. Merged audit IDs remain in
+`flags.pf2e-party-quick-sell.saleIds`.
 
 An ambiguous failure retains the record and blocks further equipment sales for
 that Party. Do not blindly repeat a sale, restore the item, or award coins: inspect

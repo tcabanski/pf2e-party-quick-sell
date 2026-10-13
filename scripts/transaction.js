@@ -224,7 +224,8 @@ function taggedSaleId(item) {
 
 function isStandardCoin(item) {
   const unit = item?.unit ?? item?.system?.slug;
-  return ["pp", "gp", "sp", "cp"].includes(unit);
+  const actualCoinage = item?.isCoinage === true || item?.system?.category === "coin";
+  return actualCoinage && ["pp", "gp", "sp", "cp"].includes(unit);
 }
 
 function proceedsCoins(proceedsCp) {
@@ -252,6 +253,125 @@ function coinValue(item) {
     return isCurrency(item) ? copperValueOf(item.assetValue, "coin assetValue") : 0n;
   } catch {
     return 0n;
+  }
+}
+
+const COIN_RATES = { pp: 1000n, gp: 100n, sp: 10n, cp: 1n };
+
+function coinQuantity(item) {
+  const quantity = item?.quantity ?? item?.system?.quantity;
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new SaleError("RECONCILIATION_REQUIRED", "A standard coin stack has an invalid quantity");
+  }
+  return quantity;
+}
+
+function saleIds(item) {
+  const flags = item?.flags?.[MODULE_ID] ?? {};
+  const stored = item?.getFlag?.(MODULE_ID, "saleIds");
+  const ids = Array.isArray(stored) ? stored : (Array.isArray(flags.saleIds) ? flags.saleIds : []);
+  const current = taggedSaleId(item);
+  return [...new Set([...ids, ...(current ? [current] : [])])];
+}
+
+function coinSource(item) {
+  return {
+    id: item.id,
+    unit: item.unit ?? item.system?.slug,
+    quantity: coinQuantity(item),
+    saleIds: saleIds(item),
+  };
+}
+
+function directStandardCoins(actor) {
+  return collectionValues(actor?.items).filter((item) =>
+    isDirectActorItem(actor, item) &&
+    !item.container && !item.system?.containerId &&
+    isStandardCoin(item),
+  );
+}
+
+function deletionConfirmed(result, expectedId) {
+  if (result === undefined || result === null) return false;
+  if (Array.isArray(result)) return result.length === 1 && result[0]?.id === expectedId;
+  return result?.id === expectedId;
+}
+
+function consolidationPlan(actor) {
+  const coins = directStandardCoins(actor);
+  const baseline = coins.map(coinSource);
+  const expectedValueCp = baseline.reduce((sum, source) => sum + BigInt(source.quantity) * COIN_RATES[source.unit], 0n);
+  return { baseline, expectedValueCp: expectedValueCp.toString() };
+}
+
+function sameConsolidationSnapshot(actor, baseline) {
+  const current = directStandardCoins(actor).map(coinSource);
+  return current.length === baseline.length && current.every((source, index) =>
+    stableSerialize(source) === stableSerialize(baseline[index]),
+  );
+}
+
+async function consolidateStandardCoins(actor, journal, requireMutationAuthority) {
+  const baseline = journal.consolidation.baseline;
+  if (!sameConsolidationSnapshot(actor, baseline)) {
+    throw new SaleError("RECONCILIATION_REQUIRED", "Coin inventory changed before consolidation", { journal });
+  }
+  const groups = new Map();
+  for (const source of baseline) {
+    if (!groups.has(source.unit)) groups.set(source.unit, []);
+    groups.get(source.unit).push(source);
+  }
+  for (const sources of groups.values()) {
+    if (sources.reduce((sum, source) => sum + BigInt(source.quantity), 0n) > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new SaleError("VALUE_TOO_LARGE", "Coin consolidation exceeds Foundry's safe integer quantity range", { journal });
+    }
+  }
+  for (const [unit, sources] of groups) {
+    const expectedQuantityBig = sources.reduce((sum, source) => sum + BigInt(source.quantity), 0n);
+    if (expectedQuantityBig > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new SaleError("VALUE_TOO_LARGE", "Coin consolidation exceeds Foundry's safe integer quantity range", { journal });
+    }
+    const expectedQuantity = Number(expectedQuantityBig);
+    const keeper = collectionGet(actor.items, sources[0].id);
+    const mergedSaleIds = [...new Set(sources.flatMap((source) => source.saleIds))];
+    if (!keeper) throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation keeper is missing", { journal });
+    if (sources.length > 1 || coinQuantity(keeper) !== expectedQuantity) {
+      requireMutationAuthority();
+      if (typeof keeper.update !== "function") throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation update API is unavailable", { journal });
+      const updated = await keeper.update({
+        "system.quantity": expectedQuantity,
+        [`flags.${MODULE_ID}.saleIds`]: mergedSaleIds,
+      });
+      if (!updated || updated.id !== keeper.id || coinQuantity(keeper) !== expectedQuantity ||
+          stableSerialize(saleIds(keeper)) !== stableSerialize(mergedSaleIds)) {
+        throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation update or audit IDs were not confirmed", { journal });
+      }
+    }
+    for (const source of sources.slice(1)) {
+      requireMutationAuthority();
+      const extra = collectionGet(actor.items, source.id);
+      if (!extra || typeof extra.delete !== "function") throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation delete API is unavailable", { journal });
+      let deleted;
+      try {
+        deleted = await extra.delete();
+      } catch (cause) {
+        throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation failed; GM reconciliation is required", { cause, journal });
+      }
+      if (!deletionConfirmed(deleted, extra.id) || collectionGet(actor.items, extra.id)) {
+        throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation deletion was not confirmed", { journal });
+      }
+    }
+  }
+  const remaining = directStandardCoins(actor);
+  for (const unit of ["pp", "gp", "sp", "cp"]) {
+    const stacks = remaining.filter((coin) => (coin.unit ?? coin.system?.slug) === unit);
+    if (stacks.length > 1 || stacks.some((coin) => coinQuantity(coin) <= 0)) {
+      throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation could not verify one stack per denomination", { journal });
+    }
+  }
+  const actualValue = remaining.reduce((sum, coin) => sum + BigInt(coinQuantity(coin)) * COIN_RATES[coin.unit ?? coin.system?.slug], 0n);
+  if (actualValue !== BigInt(journal.consolidation.expectedValueCp)) {
+    throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation changed stash value", { journal, actualValue: actualValue.toString() });
   }
 }
 
@@ -447,6 +567,34 @@ function createSaleRuntime(options = {}) {
     if (taggedValue !== proceedsCp) {
       throw new SaleError("RECONCILIATION_REQUIRED", "Currency credit could not be verified; GM reconciliation is required", { journal, taggedValue: taggedValue.toString() });
     }
+    requireActiveGM("RECONCILIATION_REQUIRED");
+    journal.consolidation = consolidationPlan(actor);
+    journal.stage = "consolidating";
+    await persistJournal(actor, journal, "RECONCILIATION_REQUIRED");
+    const storedConsolidation = getFlag(actor)?.consolidation;
+    if (!storedConsolidation || stableSerialize(storedConsolidation.baseline) !== stableSerialize(journal.consolidation.baseline) ||
+        storedConsolidation.expectedValueCp !== journal.consolidation.expectedValueCp ||
+        !currentJournalIs(actor, saleId, "consolidating")) {
+      throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation baseline was not persisted", { journal });
+    }
+    const requireConsolidationAuthority = () => {
+      requireActiveGM("RECONCILIATION_REQUIRED");
+      if (!currentJournalIs(actor, saleId, "consolidating")) {
+        throw new SaleError("RECONCILIATION_REQUIRED", "Sale journal changed during coin consolidation", { journal });
+      }
+    };
+    if (!sameConsolidationSnapshot(actor, journal.consolidation.baseline)) {
+      throw new SaleError("RECONCILIATION_REQUIRED", "Coin inventory changed before coin consolidation", { journal });
+    }
+    try {
+      await consolidateStandardCoins(actor, journal, requireConsolidationAuthority);
+      await persistJournal(actor, journal, "RECONCILIATION_REQUIRED");
+    } catch (error) {
+      if (error instanceof SaleError) throw error;
+      throw new SaleError("RECONCILIATION_REQUIRED", "Coin consolidation is ambiguous; GM reconciliation is required", { cause: error, journal });
+    }
+    journal.stage = "completed";
+    await persistJournal(actor, journal, "RECONCILIATION_REQUIRED");
     await clearFlag(actor);
     if (getFlag(actor)) throw new SaleError("RECONCILIATION_REQUIRED", "Sale completed but its journal could not be cleared", { journal });
     completedSaleIds.add(saleId);
