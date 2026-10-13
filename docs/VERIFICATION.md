@@ -48,14 +48,28 @@ manifest/ZIP build passed. Native partial valuation now fails closed rather than
 scaling an already-rounded stack total. Invalid saved percentages fail clearly.
 This remains mocked automated coverage, not full live acceptance approval.
 
+## Published release verification
+
+- Source pushed to public `tcabanski/pf2e-party-quick-sell`, default branch main,
+  commit `277867e`; tag `v1.0.0-rc.1` pushed.
+- GitHub CI run `38402754791` succeeded.
+- Automated release run `38402776295` succeeded and published the prerelease
+  with `module.json` and `module.zip` assets.
+- Parent executed `python tools/verify_release.py v1.0.0-rc.1`: anonymous manifest
+  and ZIP downloads succeeded; 11 archive entries validated; embedded version
+  `1.0.0-rc.1`, dependency/compatibility metadata and versioned download matched.
+- Stable main-branch manifest anonymously advertised `1.0.0-rc.1` and provides
+  Foundry's update-discovery URL. No actual future-version upgrade was tested.
+- Live installer access redirected to the running game. Returning Runelords to
+  Setup requires disconnect permission; requested but not yet received.
+
 ## Outstanding before stable release
 
-- Expanded automated suite and independent final code review.
+- Independent final code review.
 - Real installation from published public manifest and module loading.
 - Real GM UI/basic/rune/stack/treasure/rerender/disable testing.
 - Real player-owner and non-owner authorization/socket tests, if temporary test
   accounts can be used safely.
-- Public CI/release runs and anonymous manifest/ZIP checks.
 - Cleanup of disposable live test actors/accounts/settings.
 
 ## Guarantees not claimed
