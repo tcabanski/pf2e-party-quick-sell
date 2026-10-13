@@ -1,0 +1,56 @@
+{
+  "foundry": "14.369",
+  "pf2e": "8.6.1",
+  "scope": "Read-only compendium documents/unpersisted clones, not module sales",
+  "results": [
+    {
+      "name": "Longsword",
+      "type": "weapon",
+      "quantity": 1,
+      "per": 1,
+      "preparedCp": 100,
+      "assetCp": 100
+    },
+    {
+      "name": "Chain Mail",
+      "type": "armor",
+      "quantity": 1,
+      "per": 1,
+      "preparedCp": 600,
+      "assetCp": 600
+    },
+    {
+      "name": "Arrows",
+      "type": "ammo",
+      "quantity": 10,
+      "per": 10,
+      "preparedCp": 10,
+      "assetCp": 10
+    }
+  ],
+  "note": "Read-only value inspection of disposable persisted test Items; module sales not yet executed. Fundamental runes require test Actor disableABP flag in this ABP world.",
+  "persistedTestFixtures": {
+    "foundry": "14.369",
+    "pf2e": "8.6.1",
+    "abpWorld": "ABPFundamentalPotency",
+    "testActorDisableABP": true,
+    "magic": {
+      "name": "Test +1 Striking Flaming Longsword",
+      "rawBase": {
+        "gp": 1
+      },
+      "preparedCp": 60000,
+      "assetCp": 60000,
+      "runes": {
+        "potency": 1,
+        "striking": 1,
+        "property": [
+          "flaming"
+        ],
+        "effects": []
+      }
+    },
+    "controls": 0,
+    "itemRows": 6
+  }
+}
