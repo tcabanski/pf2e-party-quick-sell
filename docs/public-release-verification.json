@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "source_commit": "5b6463914148e15a7779d70dd0539d656d3ff47a",
+  "ci_run": 38416741921,
+  "release_run": 38416743905,
+  "ci_conclusion": "success",
+  "release_conclusion": "success",
+  "prerelease": false,
+  "anonymous_manifest": true,
+  "anonymous_zip": true,
+  "archive_source_byte_matches": 9,
+  "stable_runtime_diff_from_live_rc3": false,
+  "runelords_installed_version": "1.0.0-rc.3",
+  "runelords_module_enabled": true,
+  "temporary_actors_remaining": 0,
+  "temporary_users_remaining": 0,
+  "automation_browser_closed": true
+}
