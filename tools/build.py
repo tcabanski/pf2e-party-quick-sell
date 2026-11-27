@@ -12,7 +12,7 @@ repository = "https://github.com/tcabanski/" + module_id
 version = manifest["version"]
 assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version), "Invalid semantic version"
 assert manifest["id"] == module_id
-assert manifest["compatibility"] == {"minimum": "14.361", "verified": "14.369", "maximum": "14"}
+assert manifest["compatibility"] == {"minimum": "14.361", "verified": "14", "maximum": "14"}
 assert manifest["relationships"]["systems"] == [{"id": "pf2e", "type": "system", "compatibility": {"minimum": "8.6.1", "verified": "8.6.1"}}]
 assert manifest["url"] == repository
 assert manifest["manifest"] == "https://raw.githubusercontent.com/tcabanski/pf2e-party-quick-sell/main/module.json"

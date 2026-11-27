@@ -29,7 +29,7 @@ def fetch(url):
 
 manifest = json.loads(fetch(base + "/module.json"))
 assert manifest["id"] == ID and manifest["version"] == version
-assert manifest["compatibility"] == {"minimum": "14.361", "verified": "14.369", "maximum": "14"}
+assert manifest["compatibility"] == {"minimum": "14.361", "verified": "14", "maximum": "14"}
 assert manifest["relationships"]["systems"][0]["id"] == "pf2e"
 assert manifest["relationships"]["systems"][0]["compatibility"]["minimum"] == "8.6.1"
 assert manifest["download"] == base + "/module.zip"

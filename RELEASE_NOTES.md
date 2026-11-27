@@ -1,4 +1,12 @@
-# PF2e Party Quick Sell — v1.0.2
+# PF2e Party Quick Sell — v1.0.3
+
+Foundry compatibility now declares verification at the V14 generation level,
+matching PF2E Point Tracker. Newer V14 builds no longer get an unverified-build
+badge solely because they are newer than 14.369. The Foundry minimum stays at
+14.361 and the maximum stays at V14. PF2e requirements and runtime code are
+unchanged. No new live-world test is claimed for this metadata-only release.
+
+## Prior v1.0.2 stack consolidation
 
 Successful equipment sales now consolidate top-level Party Stash coins to one
 stack per denomination, including duplicate stacks from earlier sales. Largest

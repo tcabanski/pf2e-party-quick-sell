@@ -5,7 +5,7 @@ to equipment in the Pathfinder 2e Party Stash. It uses PF2e's calculated item
 value rather than reimplementing magic-item pricing. Existing Sell Treasure
 buttons and sales are left completely unchanged.
 
-**Stable v1.0.2:** 66 automated tests; initial runtime live acceptance on Foundry
+**Stable v1.0.3:** 66 automated tests; initial runtime live acceptance on Foundry
 14.369 / PF2e 8.6.1. The denomination and consolidation patches are automated/source-verified, not
 newly live-tested. See [verification](docs/VERIFICATION.md) for exact scope.
 
@@ -32,9 +32,10 @@ newly live-tested. See [verification](docs/VERIFICATION.md) for exact scope.
 ## Compatibility
 
 Source investigated: PF2e **8.6.1** release tag `pf2e-8.6.1` on Foundry **14.369**.
-The manifest declares Foundry 14.361–14.x and PF2e 8.6.1 or later, with no
-PF2e upper-version cap. Runtime feature checks reject missing or changed APIs
-rather than guess prices. Future PF2e releases are not claimed to be tested.
+The manifest declares Foundry 14.361–14.x, with verification declared at the
+Foundry V14 generation level. It requires PF2e 8.6.1 or later with no upper
+version cap. Runtime feature checks reject missing or changed APIs rather than
+guess prices. Future PF2e releases are not claimed to be tested.
 This declaration is not a claim of live testing on every Foundry 14 build.
 Actual live test outcomes, when performed, are recorded separately.
 
